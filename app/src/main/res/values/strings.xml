@@ -1,6 +1,5 @@
 <resources>
     <string name="app_name">Toy Camera2</string>
     <string name="picture">Picture</string>
-    <string name="request_permission">This Application needs camera permission.</string>
-    <!--<string name="camera_error">This device doesn\'t support Camera2 API.</string>-->
+    <string name="request_permission">This Application needs permission.</string>
 </resources>

@@ -2,7 +2,6 @@ package com.example.astro.toycamera2;
 
 import android.Manifest;
 import android.Manifest.permission;
-import android.annotation.TargetApi;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.Dialog;
@@ -25,7 +24,6 @@ import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.Image;
 import android.media.ImageReader;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
@@ -65,6 +63,7 @@ public class MainActivity extends AppCompatActivity {
 
     private static final int REQUEST_CAMERA_PERMISSION = 1;
     private static final int REQUEST_WRITE_EXTERNAL_STORAGE_PERMISSION = 2;
+    private static int REQUEST_CODE;
     private static final String FRAGMENT_DIALOG = "dialog";
     private static final SparseIntArray ORIENTATIONS = new SparseIntArray();
 
@@ -145,11 +144,11 @@ public class MainActivity extends AppCompatActivity {
 
     };
 
-    @TargetApi(Build.VERSION_CODES.M)
     private void openCamera(int width, int height) {
-        if (checkSelfPermission(permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+        if (ActivityCompat.checkSelfPermission(this, permission.CAMERA) !=
+                PackageManager.PERMISSION_GRANTED) {
             Log.e(TAG, "Permission not granted");
-            requestCameraPermissions();
+            requestDangerousPermissions(Manifest.permission.CAMERA, REQUEST_CAMERA_PERMISSION);
             return;
         }
         setupCameraOutputs();
@@ -287,8 +286,8 @@ public class MainActivity extends AppCompatActivity {
 
                         @Override
                         public void onConfigureFailed(@NonNull CameraCaptureSession session) {
-
-                            Toast.makeText(MainActivity.this, "onConfigureFailed", Toast.LENGTH_LONG).show();
+                            Toast.makeText(MainActivity.this, "onConfigureFailed",
+                                    Toast.LENGTH_LONG).show();
                         }
                     }, null);
         } catch (CameraAccessException e) {
@@ -328,18 +327,20 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        if (checkSelfPermission(permission.WRITE_EXTERNAL_STORAGE) !=
+        if (ActivityCompat.checkSelfPermission(this, permission.WRITE_EXTERNAL_STORAGE) !=
                 PackageManager.PERMISSION_GRANTED) {
             Log.d(TAG, "Storage Permissions not granted");
-
+            requestDangerousPermissions(permission.WRITE_EXTERNAL_STORAGE,
+                    REQUEST_WRITE_EXTERNAL_STORAGE_PERMISSION);
+            return;
         }
 
         CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
         try {
-            CameraCharacteristics characteristics = manager.getCameraCharacteristics(mCameraDevice.getId());
+            CameraCharacteristics characteristics =
+                    manager.getCameraCharacteristics(mCameraDevice.getId());
 
-            Size[] jpegSizes = null;
-            jpegSizes = characteristics
+            Size[] jpegSizes = characteristics
                     .get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
                     .getOutputSizes(ImageFormat.JPEG);
             int width = 640;
@@ -370,9 +371,11 @@ public class MainActivity extends AppCompatActivity {
             int rotation = getWindowManager().getDefaultDisplay().getRotation();
             captureBuilder.set(CaptureRequest.JPEG_ORIENTATION, ORIENTATIONS.get(rotation));
 
-            final File file = new File(Environment.getExternalStorageDirectory() + "/DCIM", "toypic.jpg");
+            final File file =
+                    new File(Environment.getExternalStorageDirectory() + "/DCIM", "toypic.jpg");
 
-            ImageReader.OnImageAvailableListener readerListener = new ImageReader.OnImageAvailableListener() {
+            ImageReader.OnImageAvailableListener readerListener =
+                    new ImageReader.OnImageAvailableListener() {
 
                 @Override
                 public void onImageAvailable(ImageReader reader) {
@@ -412,7 +415,8 @@ public class MainActivity extends AppCompatActivity {
             final Handler backgroudHandler = new Handler(thread.getLooper());
             reader.setOnImageAvailableListener(readerListener, backgroudHandler);
 
-            final CameraCaptureSession.CaptureCallback captureListener = new CameraCaptureSession.CaptureCallback() {
+            final CameraCaptureSession.CaptureCallback captureListener =
+                    new CameraCaptureSession.CaptureCallback() {
 
                 @Override
                 public void onCaptureCompleted(@NonNull CameraCaptureSession session,
@@ -429,7 +433,8 @@ public class MainActivity extends AppCompatActivity {
 
             };
 
-            mCameraDevice.createCaptureSession(outputSurfaces, new CameraCaptureSession.StateCallback() {
+            mCameraDevice.createCaptureSession(outputSurfaces,
+                    new CameraCaptureSession.StateCallback() {
 
                 @Override
                 public void onConfigured(@NonNull CameraCaptureSession session) {
@@ -457,13 +462,13 @@ public class MainActivity extends AppCompatActivity {
     /*
      * Display Permission Requests
      */
-    private void requestCameraPermissions() {
-
-        if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.CAMERA)) {
+    private void requestDangerousPermissions(String permissions, int requestCode) {
+        REQUEST_CODE = requestCode;
+        if (ActivityCompat.shouldShowRequestPermissionRationale(this, permissions)) {
             new ConfirmationDialog().show(getFragmentManager(), FRAGMENT_DIALOG);
         } else { // "Don't Ask Me Again" Selected
-            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA},
-                    REQUEST_CAMERA_PERMISSION);
+            ActivityCompat.requestPermissions(this, new String[]{permissions},
+                    REQUEST_CODE);
         }
 
     }
@@ -472,13 +477,14 @@ public class MainActivity extends AppCompatActivity {
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
                                            @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-
-        if (requestCode == REQUEST_CAMERA_PERMISSION &&
+        final String permissionsType = REQUEST_CODE == REQUEST_CAMERA_PERMISSION ?
+                Manifest.permission.CAMERA : permission.WRITE_EXTERNAL_STORAGE;
+        if (requestCode == REQUEST_CODE &&
                 grantResults[0] == PackageManager.PERMISSION_DENIED) {
             if (!ActivityCompat.shouldShowRequestPermissionRationale(this,
-                    Manifest.permission.CAMERA)) {
+                    permissionsType)) {
                 Toast.makeText(getApplicationContext(),
-                        "Vai nelle impostazioni e dai il consenso per la fotocamera",
+                        "Vai nelle impostazioni e dai il consenso",
                         Toast.LENGTH_LONG).show();
                 // Delay the Activity Closure
                 new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
@@ -498,14 +504,15 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public Dialog onCreateDialog(Bundle savedInstanceState) {
+            final String permissions = REQUEST_CODE == REQUEST_CAMERA_PERMISSION ?
+                    Manifest.permission.CAMERA : permission.WRITE_EXTERNAL_STORAGE;
             return new AlertDialog.Builder(getActivity())
                     .setMessage(R.string.request_permission)
                     .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
                         @Override
                         public void onClick(DialogInterface dialog, int which) {
                             ActivityCompat.requestPermissions(getActivity(),
-                                    new String[]{Manifest.permission.CAMERA},
-                                    REQUEST_CAMERA_PERMISSION);
+                                    new String[]{permissions}, REQUEST_CODE);
                         }
                     })
                     .setNegativeButton(android.R.string.cancel,
