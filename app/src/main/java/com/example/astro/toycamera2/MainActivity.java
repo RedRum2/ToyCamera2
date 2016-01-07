@@ -3,15 +3,23 @@ package com.example.astro.toycamera2;
 import android.Manifest;
 import android.Manifest.permission;
 import android.annotation.TargetApi;
+import android.app.Activity;
+import android.app.AlertDialog;
+import android.app.Dialog;
+import android.app.DialogFragment;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.pm.PackageManager;
 import android.graphics.ImageFormat;
+import android.graphics.Matrix;
+import android.graphics.RectF;
 import android.graphics.SurfaceTexture;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
+import android.hardware.camera2.CameraMetadata;
 import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.params.StreamConfigurationMap;
@@ -22,6 +30,7 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.os.Looper;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AppCompatActivity;
@@ -35,13 +44,12 @@ import android.widget.Button;
 import android.widget.Toast;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
@@ -55,8 +63,9 @@ public class MainActivity extends AppCompatActivity {
     private CaptureRequest.Builder mPreviewBuilder;
     private CameraCaptureSession mPreviewSession;
 
-    private Button btnPicture;
-
+    private static final int REQUEST_CAMERA_PERMISSION = 1;
+    private static final int REQUEST_WRITE_EXTERNAL_STORAGE_PERMISSION = 2;
+    private static final String FRAGMENT_DIALOG = "dialog";
     private static final SparseIntArray ORIENTATIONS = new SparseIntArray();
 
     static {
@@ -66,24 +75,15 @@ public class MainActivity extends AppCompatActivity {
         ORIENTATIONS.append(Surface.ROTATION_270, 180);
     }
 
-//    private static final int MAX_PREVIEW_HEIGHT = 1080;
-//    private static final int MAX_PREVIEW_WIDTH = 1920;
-
-
-
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-//        requestWindowFeature(Window.FEATURE_NO_TITLE);
-//        getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
         setContentView(R.layout.activity_main);
 
         mTextureView = (TextureView) findViewById(R.id.texture);
-        btnPicture = (Button) findViewById(R.id.picture);
+        Button btnPicture = (Button) findViewById(R.id.picture);
 
         btnPicture.setOnClickListener(mOnClick);
-//        mFile = new File(getExternalFilesDir(null), "pic.jpg");
     }
 
     private final View.OnClickListener mOnClick = new View.OnClickListener() {
@@ -114,8 +114,9 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
-    /**
-     * This listener can be used to be notified when the surface texture associated with this texture view is available.
+    /*
+     * This listener can be used to be notified when the surface texture associated
+     * with this texture view is available.
      */
     private final TextureView.SurfaceTextureListener mSurfaceTextureListener
             = new TextureView.SurfaceTextureListener() {
@@ -128,7 +129,7 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onSurfaceTextureSizeChanged(SurfaceTexture texture, int width, int height) {
             Log.e(TAG, "onSurfaceTextureSizeChanged");
-            //configureTransform(width, height);
+            configureTransform(width, height);
         }
 
         @Override
@@ -139,21 +140,20 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public void onSurfaceTextureUpdated(SurfaceTexture texture) {
-            Log.e(TAG, "onSurfaceTextureUpdated");
+            //Log.e(TAG, "onSurfaceTextureUpdated");
         }
 
     };
 
     @TargetApi(Build.VERSION_CODES.M)
     private void openCamera(int width, int height) {
-        if (checkSelfPermission(permission.CAMERA)
-                != PackageManager.PERMISSION_GRANTED) {
+        if (checkSelfPermission(permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             Log.e(TAG, "Permission not granted");
             requestCameraPermissions();
             return;
         }
-        setUpCameraOutputs(width, height);
-        //configureTransform(width, height);
+        setupCameraOutputs();
+        configureTransform(width, height);
         CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
         try {
 //            if (!mCameraOpenCloseLock.tryAcquire(2500, TimeUnit.MILLISECONDS)) {
@@ -167,7 +167,10 @@ public class MainActivity extends AppCompatActivity {
 //        }
     }
 
-    private void setUpCameraOutputs(int width, int height) throws NullPointerException {
+    /*
+     * Set the back cameraId and the mPreviewSize
+     */
+    private void setupCameraOutputs() throws NullPointerException {
         CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
         try {
             for (String cameraId : manager.getCameraIdList()) {
@@ -186,79 +189,6 @@ public class MainActivity extends AppCompatActivity {
                     continue;
                 }
 
-
-
-                // For still image captures, we use the largest available size.
-//                Size largest = Collections.max(
-//                        Arrays.asList(map.getOutputSizes(ImageFormat.JPEG)),
-//                        new CompareSizesByArea());
-//                mImageReader = ImageReader.newInstance(largest.getWidth(), largest.getHeight(),
-//                        ImageFormat.JPEG, /*maxImages*/2);
-//                mImageReader.setOnImageAvailableListener(
-//                        mOnImageAvailableListener, mBackgroundHandler);
-
-                // Find out if we need to swap dimension to get the preview size relative to sensor
-                // coordinate.
-//                int displayRotation = getWindowManager().getDefaultDisplay().getRotation();
-//                int sensorOrientation =
-//                        characteristics.get(CameraCharacteristics.SENSOR_ORIENTATION);
-//                boolean swappedDimensions = false;
-//                switch (displayRotation) {
-//                    case Surface.ROTATION_0:
-//                    case Surface.ROTATION_180:
-//                        if (sensorOrientation == 90 || sensorOrientation == 270) {
-//                            swappedDimensions = true;
-//                        }
-//                        break;
-//                    case Surface.ROTATION_90:
-//                    case Surface.ROTATION_270:
-//                        if (sensorOrientation == 0 || sensorOrientation == 180) {
-//                            swappedDimensions = true;
-//                        }
-//                        break;
-//                    default:
-//                        Log.e(TAG, "Display rotation is invalid: " + displayRotation);
-//                }
-//
-//                Point displaySize = new Point();
-//                getWindowManager().getDefaultDisplay().getSize(displaySize);
-//                int rotatedPreviewWidth = width;
-//                int rotatedPreviewHeight = height;
-//                int maxPreviewWidth = displaySize.x;
-//                int maxPreviewHeight = displaySize.y;
-//
-//                if (swappedDimensions) {
-//                    rotatedPreviewWidth = height;
-//                    rotatedPreviewHeight = width;
-//                    maxPreviewWidth = displaySize.y;
-//                    maxPreviewHeight = displaySize.x;
-//                }
-//
-//                if (maxPreviewWidth > MAX_PREVIEW_WIDTH) {
-//                    maxPreviewWidth = MAX_PREVIEW_WIDTH;
-//                }
-//
-//                if (maxPreviewHeight > MAX_PREVIEW_HEIGHT) {
-//                    maxPreviewHeight = MAX_PREVIEW_HEIGHT;
-//                }
-//
-//                // Danger, W.R.! Attempting to use too large a preview size could  exceed the camera
-//                // bus' bandwidth limitation, resulting in gorgeous previews but the storage of
-//                // garbage capture data.
-//                mPreviewSize = chooseOptimalSize(map.getOutputSizes(SurfaceTexture.class),
-//                        rotatedPreviewWidth, rotatedPreviewHeight, maxPreviewWidth,
-//                        maxPreviewHeight, largest);
-//
-//                // We fit the aspect ratio of TextureView to the size of preview we picked.
-//                int orientation = getResources().getConfiguration().orientation;
-//                if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
-//                    mTextureView.setAspectRatio(
-//                            mPreviewSize.getWidth(), mPreviewSize.getHeight());
-//                } else {
-//                    mTextureView.setAspectRatio(
-//                            mPreviewSize.getHeight(), mPreviewSize.getWidth());
-//                }
-
                 mPreviewSize = map.getOutputSizes(SurfaceTexture.class)[0];
                 mCameraId = cameraId;
                 return;
@@ -267,7 +197,32 @@ public class MainActivity extends AppCompatActivity {
             e.printStackTrace();
         }
     }
-
+    /*
+     * Manage Device Rotation
+     */
+    private void configureTransform(int viewWidth, int viewHeight) {
+        if (null == mTextureView || null == mPreviewSize) {
+            return;
+        }
+        int rotation = getWindowManager().getDefaultDisplay().getRotation();
+        Matrix matrix = new Matrix();
+        RectF viewRect = new RectF(0, 0, viewWidth, viewHeight);
+        RectF bufferRect = new RectF(0, 0, mPreviewSize.getHeight(), mPreviewSize.getWidth());
+        float centerX = viewRect.centerX();
+        float centerY = viewRect.centerY();
+        if (Surface.ROTATION_90 == rotation || Surface.ROTATION_270 == rotation) {
+            bufferRect.offset(centerX - bufferRect.centerX(), centerY - bufferRect.centerY());
+            matrix.setRectToRect(viewRect, bufferRect, Matrix.ScaleToFit.FILL);
+            float scale = Math.max(
+                    (float) viewHeight / mPreviewSize.getHeight(),
+                    (float) viewWidth / mPreviewSize.getWidth());
+            matrix.postScale(scale, scale, centerX, centerY);
+            matrix.postRotate(90 * (rotation - 2), centerX, centerY);
+        } else if (Surface.ROTATION_180 == rotation) {
+            matrix.postRotate(180, centerX, centerY);
+        }
+        mTextureView.setTransform(matrix);
+    }
 
     private final CameraDevice.StateCallback mStateCallback = new CameraDevice.StateCallback() {
 
@@ -298,14 +253,14 @@ public class MainActivity extends AppCompatActivity {
 
     protected void startPreview() {
 
-        if (null == mCameraDevice || !mTextureView.isAvailable() || null == mPreviewSize) {
+        if (null == mCameraDevice || !mTextureView.isAvailable() || mPreviewSize == null) {
             Log.e(TAG, "startPreview fail, return");
             return;
         }
 
         SurfaceTexture texture = mTextureView.getSurfaceTexture();
         if (null == texture) {
-            Log.e(TAG,"texture is null, return");
+            Log.e(TAG, "texture is null, return");
             return;
         }
 
@@ -320,21 +275,22 @@ public class MainActivity extends AppCompatActivity {
         mPreviewBuilder.addTarget(surface);
 
         try {
-            mCameraDevice.createCaptureSession(Arrays.asList(surface), new CameraCaptureSession.StateCallback() {
+            mCameraDevice.createCaptureSession(Collections.singletonList(surface),
+                    new CameraCaptureSession.StateCallback() {
 
-                @Override
-                public void onConfigured(CameraCaptureSession session) {
+                        @Override
+                        public void onConfigured(@NonNull CameraCaptureSession session) {
 
-                    mPreviewSession = session;
-                    updatePreview();
-                }
+                            mPreviewSession = session;
+                            updatePreview();
+                        }
 
-                @Override
-                public void onConfigureFailed(CameraCaptureSession session) {
+                        @Override
+                        public void onConfigureFailed(@NonNull CameraCaptureSession session) {
 
-                    Toast.makeText(MainActivity.this, "onConfigureFailed", Toast.LENGTH_LONG).show();
-                }
-            }, null);
+                            Toast.makeText(MainActivity.this, "onConfigureFailed", Toast.LENGTH_LONG).show();
+                        }
+                    }, null);
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }
@@ -372,16 +328,20 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
+        if (checkSelfPermission(permission.WRITE_EXTERNAL_STORAGE) !=
+                PackageManager.PERMISSION_GRANTED) {
+            Log.d(TAG, "Storage Permissions not granted");
+
+        }
+
         CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
         try {
             CameraCharacteristics characteristics = manager.getCameraCharacteristics(mCameraDevice.getId());
 
             Size[] jpegSizes = null;
-            if (characteristics != null) {
-                jpegSizes = characteristics
-                        .get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
-                        .getOutputSizes(ImageFormat.JPEG);
-            }
+            jpegSizes = characteristics
+                    .get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+                    .getOutputSizes(ImageFormat.JPEG);
             int width = 640;
             int height = 480;
             if (jpegSizes != null && 0 < jpegSizes.length) {
@@ -390,13 +350,16 @@ public class MainActivity extends AppCompatActivity {
             }
 
             ImageReader reader = ImageReader.newInstance(width, height, ImageFormat.JPEG, 1);
-            List<Surface> outputSurfaces = new ArrayList<Surface>(2);
+            List<Surface> outputSurfaces = new ArrayList<>(2);
             outputSurfaces.add(reader.getSurface());
             outputSurfaces.add(new Surface(mTextureView.getSurfaceTexture()));
 
             final CaptureRequest.Builder captureBuilder =
                     mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
             captureBuilder.addTarget(reader.getSurface());
+            // Lock Focus
+            mPreviewBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER,
+                    CameraMetadata.CONTROL_AF_TRIGGER_START);
             // Use the same AE and AF modes as the preview.
             captureBuilder.set(CaptureRequest.CONTROL_AF_MODE,
                     CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
@@ -421,8 +384,6 @@ public class MainActivity extends AppCompatActivity {
                         byte[] bytes = new byte[buffer.capacity()];
                         buffer.get(bytes);
                         save(bytes);
-                    } catch (FileNotFoundException e) {
-                        e.printStackTrace();
                     } catch (IOException e) {
                         e.printStackTrace();
                     } finally {
@@ -432,7 +393,7 @@ public class MainActivity extends AppCompatActivity {
                     }
                 }
 
-                private void save(byte[] bytes) throws IOException {
+                protected void save(byte[] bytes) throws IOException {
                     OutputStream output = null;
                     try {
                         output = new FileOutputStream(file);
@@ -454,11 +415,15 @@ public class MainActivity extends AppCompatActivity {
             final CameraCaptureSession.CaptureCallback captureListener = new CameraCaptureSession.CaptureCallback() {
 
                 @Override
-                public void onCaptureCompleted(CameraCaptureSession session,
-                                               CaptureRequest request, TotalCaptureResult result) {
+                public void onCaptureCompleted(@NonNull CameraCaptureSession session,
+                                               @NonNull CaptureRequest request,
+                                               @NonNull TotalCaptureResult result) {
 
                     super.onCaptureCompleted(session, request, result);
                     Toast.makeText(MainActivity.this, "Saved:" + file, Toast.LENGTH_SHORT).show();
+                    // Unlock focus
+                    mPreviewBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER,
+                            CameraMetadata.CONTROL_AF_TRIGGER_CANCEL);
                     startPreview();
                 }
 
@@ -467,7 +432,7 @@ public class MainActivity extends AppCompatActivity {
             mCameraDevice.createCaptureSession(outputSurfaces, new CameraCaptureSession.StateCallback() {
 
                 @Override
-                public void onConfigured(CameraCaptureSession session) {
+                public void onConfigured(@NonNull CameraCaptureSession session) {
 
                     try {
                         session.capture(captureBuilder.build(), captureListener, backgroudHandler);
@@ -478,30 +443,83 @@ public class MainActivity extends AppCompatActivity {
                 }
 
                 @Override
-                public void onConfigureFailed(CameraCaptureSession session) {
+                public void onConfigureFailed(@NonNull CameraCaptureSession session) {
 
                 }
             }, backgroudHandler);
 
-        } catch (CameraAccessException e) {
-            e.printStackTrace();
-        } catch (NullPointerException e) {
+        } catch (CameraAccessException | NullPointerException e) {
             e.printStackTrace();
         }
 
     }
 
-
-    //Da gestire
+    /*
+     * Display Permission Requests
+     */
     private void requestCameraPermissions() {
-        if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.CAMERA)) {
 
+        if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.CAMERA)) {
+            new ConfirmationDialog().show(getFragmentManager(), FRAGMENT_DIALOG);
+        } else { // "Don't Ask Me Again" Selected
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA},
+                    REQUEST_CAMERA_PERMISSION);
         }
+
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
                                            @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        if (requestCode == REQUEST_CAMERA_PERMISSION &&
+                grantResults[0] == PackageManager.PERMISSION_DENIED) {
+            if (!ActivityCompat.shouldShowRequestPermissionRationale(this,
+                    Manifest.permission.CAMERA)) {
+                Toast.makeText(getApplicationContext(),
+                        "Vai nelle impostazioni e dai il consenso per la fotocamera",
+                        Toast.LENGTH_LONG).show();
+                // Delay the Activity Closure
+                new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        finish();
+                    }
+                }, /*Long Toast Duration*/3500);
+            } else finish();   // Sudden Closure
+        }
     }
+
+    /*
+     * Shows OK/Cancel confirmation dialog about camera permission.
+     */
+    public static class ConfirmationDialog extends DialogFragment {
+
+        @Override
+        public Dialog onCreateDialog(Bundle savedInstanceState) {
+            return new AlertDialog.Builder(getActivity())
+                    .setMessage(R.string.request_permission)
+                    .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            ActivityCompat.requestPermissions(getActivity(),
+                                    new String[]{Manifest.permission.CAMERA},
+                                    REQUEST_CAMERA_PERMISSION);
+                        }
+                    })
+                    .setNegativeButton(android.R.string.cancel,
+                            new DialogInterface.OnClickListener() {
+                                @Override
+                                public void onClick(DialogInterface dialog, int which) {
+                                    Activity activity = getActivity();
+                                    if (activity != null) {
+                                        activity.finish();
+                                    }
+                                }
+                            })
+                    .create();
+        }
+    }
+
 }
