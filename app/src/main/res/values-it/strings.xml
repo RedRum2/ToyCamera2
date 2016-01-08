@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Toy Camera2</string>
+    <string name="permissions_message">Vai nelle impostazione per concedere i permessi</string>
+    <string name="request_permission">Questa Applicazione necessita di permessi</string>
+</resources>

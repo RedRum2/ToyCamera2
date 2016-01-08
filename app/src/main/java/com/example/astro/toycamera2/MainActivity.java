@@ -155,15 +155,10 @@ public class MainActivity extends AppCompatActivity {
         configureTransform(width, height);
         CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
         try {
-//            if (!mCameraOpenCloseLock.tryAcquire(2500, TimeUnit.MILLISECONDS)) {
-//                throw new RuntimeException("Time out waiting to lock camera opening.");
-//            }
             manager.openCamera(mCameraId, mStateCallback, null);
         } catch (CameraAccessException e) {
             e.printStackTrace();
-        } //catch (InterruptedException e) {
-//            throw new RuntimeException("Interrupted while trying to lock camera opening.", e);
-//        }
+        }
     }
 
     /*
@@ -196,6 +191,7 @@ public class MainActivity extends AppCompatActivity {
             e.printStackTrace();
         }
     }
+
     /*
      * Manage Device Rotation
      */
@@ -228,27 +224,23 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onOpened(@NonNull CameraDevice cameraDevice) {
             // This method is called when the camera is opened.  We start camera preview here.
-            //mCameraOpenCloseLock.release();
             mCameraDevice = cameraDevice;
             startPreview();
         }
 
         @Override
         public void onDisconnected(@NonNull CameraDevice cameraDevice) {
-//            mCameraOpenCloseLock.release();
             cameraDevice.close();
             mCameraDevice = null;
         }
 
         @Override
         public void onError(@NonNull CameraDevice cameraDevice, int error) {
-//            mCameraOpenCloseLock.release();
             cameraDevice.close();
             mCameraDevice = null;
         }
 
     };
-
 
     protected void startPreview() {
 
@@ -318,7 +310,6 @@ public class MainActivity extends AppCompatActivity {
             e.printStackTrace();
         }
     }
-
 
     protected void takePicture() {
         Log.e(TAG, "takePicture");
@@ -484,7 +475,7 @@ public class MainActivity extends AppCompatActivity {
             if (!ActivityCompat.shouldShowRequestPermissionRationale(this,
                     permissionsType)) {
                 Toast.makeText(getApplicationContext(),
-                        "Vai nelle impostazioni e dai il consenso",
+                        R.string.permissions_message,
                         Toast.LENGTH_LONG).show();
                 // Delay the Activity Closure
                 new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
@@ -492,7 +483,7 @@ public class MainActivity extends AppCompatActivity {
                     public void run() {
                         finish();
                     }
-                }, /*Long Toast Duration*/3500);
+                }, /*Long Toast Duration*/1500);
             } else finish();   // Sudden Closure
         }
     }
